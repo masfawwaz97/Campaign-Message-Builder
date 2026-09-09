@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angle Finder + Core Message Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEFE8;
+    --card:#FFFFFF;
+    --ink:#12140F;
+    --ink-soft:#4B4F45;
+    --accent:#FF4B33;
+    --accent-ink:#FFFFFF;
+    --caution:#B8860B;
+    --highlight:#F4C93E;
+    --line:#D2D5C8;
+    --green:#2E6F5E;
+    --amber:#B8860B;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:56px 24px 96px;}
+
+  /* Shared header typography */
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    display:flex;align-items:center;gap:10px;
+    margin-bottom:18px;
+  }
+  .eyebrow::before{content:"";width:8px;height:8px;background:var(--accent);display:inline-block;border-radius:1px;}
+  h1{
+    font-family:'Archivo Black',sans-serif;
+    font-weight:400;
+    font-size:clamp(30px,4.8vw,50px);
+    line-height:1.08;
+    margin:0 0 20px;
+    letter-spacing:-0.01em;
+  }
+  .mark{
+    background-image:linear-gradient(var(--highlight),var(--highlight));
+    background-repeat:no-repeat;
+    background-size:100% 40%;
+    background-position:0 78%;
+    padding:0 2px;
+  }
+  .sub{font-size:17px;color:var(--ink-soft);max-width:600px;margin:0 0 8px;}
+  .sub b{color:var(--ink);}
+
+  .progress-row{display:flex;gap:6px;margin:32px 0 40px;}
+  .progress-seg{flex:1;height:4px;background:var(--line);border-radius:2px;overflow:hidden;}
+  .progress-seg.done{background:var(--green);}
+
+  /* Step indicator bar (shared, sits above both screens) */
+  .meta-progress{
+    position:sticky;top:0;z-index:20;
+    background:var(--ink);color:#fff;
+    padding:12px 24px;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+  }
+  .meta-progress-inner{max-width:920px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between;}
+  .meta-progress-text{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#D8D9CE;
+  }
+  .back-btn{
+    display:none;
+    font-family:'Inter',sans-serif;font-size:13px;font-weight:700;
+    background:none;border:1px solid #4A4C43;color:#fff;
+    padding:7px 14px;border-radius:7px;cursor:pointer;
+  }
+  .back-btn:hover{background:#232419;}
+
+  /* Screen transition */
+  .screen{transition:opacity .32s ease, transform .32s ease;opacity:1;transform:translateY(0);}
+  .screen.hidden{display:none;}
+  .screen.fade-out{opacity:0;transform:translateY(-14px);}
+  .screen.fade-in-start{opacity:0;transform:translateY(14px);}
+
+  /* ===== Screen 1: Angle Finder ===== */
+  .q-block{padding:28px 0;border-top:1px solid var(--line);}
+  .q-block:last-of-type{border-bottom:1px solid var(--line);}
+  .q-num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;color:var(--accent);font-weight:600;letter-spacing:.06em;
+    margin-bottom:8px;display:block;
+  }
+  .q-text{font-size:19px;font-weight:700;margin-bottom:6px;}
+  .q-example{font-size:14px;color:var(--ink-soft);margin-bottom:16px;}
+
+  .ans-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .ans-opt{
+    flex:1;min-width:150px;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    padding:13px 14px;
+    cursor:pointer;
+    background:var(--card);
+    transition:.15s ease;
+    text-align:center;
+  }
+  .ans-opt strong{display:block;font-size:14.5px;}
+  .ans-opt.active-5{border-color:var(--green);background:#EAF4F0;}
+  .ans-opt.active-5 strong{color:var(--green);}
+  .ans-opt.active-4{border-color:#4E8A77;background:#F0F7F4;}
+  .ans-opt.active-4 strong{color:#397663;}
+  .ans-opt.active-3{border-color:var(--highlight);background:#FFF8DC;}
+  .ans-opt.active-3 strong{color:#8A6A00;}
+  .ans-opt.active-2{border-color:var(--amber);background:#FBF3E2;}
+  .ans-opt.active-2 strong{color:var(--amber);}
+  .ans-opt.active-1{border-color:var(--ink-soft);background:#F1F1EC;}
+  .ans-opt.active-1 strong{color:var(--ink-soft);}
+
+  @media (max-width: 640px) {
+    .ans-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    .ans-opt{min-width:0;}
+    .ans-opt[data-val="5"]{order:1;}
+    .ans-opt[data-val="4"]{order:2;}
+    .ans-opt[data-val="3"]{order:3;}
+    .ans-opt[data-val="2"]{order:4;}
+    .ans-opt[data-val="1"]{order:5;}
+  }
+
+  .result-section{margin-top:52px;}
+  .result-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:18px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink);margin-bottom:16px;
+  }
+  .result-card{
+    background:var(--card);border-radius:var(--radius);padding:32px;
+    border:1px solid var(--line);box-shadow:0 18px 40px -26px rgba(18,20,15,.35);
+  }
+  .result-empty{color:var(--ink-soft);font-size:15px;}
+
+  .group-title{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin:22px 0 12px;}
+  .group-title:first-child{margin-top:0;}
+  .group-title.score-5{color:var(--green);}
+  .group-title.score-4{color:#397663;}
+  .group-title.score-3{color:#8A6A00;}
+  .group-title.score-2{color:var(--amber);}
+
+  .angle-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px;border-radius:10px;margin-bottom:8px;border:1px solid var(--line);
+  }
+  .angle-row.score-5{background:#EAF4F0;border-color:var(--green);}
+  .angle-row.score-4{background:#F0F7F4;border-color:#4E8A77;}
+  .angle-row.score-3{background:#FFF8DC;border-color:var(--highlight);}
+  .angle-row.score-2{background:#FBF3E2;border-color:var(--amber);}
+  .angle-name{font-weight:700;font-size:15px;}
+  .angle-rank{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);}
+  .angle-select-btn{
+    font-family:'Inter',sans-serif;font-size:13px;font-weight:700;
+    padding:8px 14px;border-radius:8px;border:1.5px solid var(--ink);
+    background:var(--ink);color:#fff;cursor:pointer;
+  }
+  .angle-select-btn:hover{filter:brightness(1.15);}
+
+  /* ===== Screen 2: Core Message Builder ===== */
+  .field-block{
+    display:grid;grid-template-columns:1fr 260px;gap:28px;padding:32px 0;border-top:1px solid var(--line);
+  }
+  .field-block:last-of-type{border-bottom:1px solid var(--line);}
+  @media (max-width:760px){.field-block{grid-template-columns:1fr;gap:14px;}}
+
+  .field-main .num{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;
+    letter-spacing:.06em;margin-bottom:8px;display:block;
+  }
+  .field-main label{display:block;font-size:20px;font-weight:700;margin-bottom:6px;}
+  .field-main .hint{font-size:14px;color:var(--ink-soft);margin-bottom:14px;max-width:480px;}
+  textarea, select{
+    width:100%;font-family:'Inter',sans-serif;font-size:16px;padding:14px 16px;
+    border:1.5px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);
+    resize:vertical;min-height:56px;transition:border-color .15s ease;
+  }
+  textarea:focus, select:focus{outline:none;border-color:var(--accent);}
+  select{appearance:none;-webkit-appearance:none;cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%234B4F45'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;
+  }
+  .charcount{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);margin-top:4px;}
+  .charcount.near-limit{color:var(--caution);}
+  .angle-hint{margin-top:10px;font-size:13.5px;color:var(--ink-soft);font-style:italic;min-height:18px;}
+
+  .toggle-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .toggle-opt{
+    flex:1;min-width:150px;border:1.5px solid var(--line);border-radius:10px;padding:14px 16px;
+    cursor:pointer;background:var(--card);transition:.15s ease;
+  }
+  .toggle-opt strong{display:block;font-size:15px;}
+  .toggle-opt span{font-size:12.5px;color:var(--ink-soft);}
+  .toggle-opt.active{border-color:var(--green);background:#EAF4F0;}
+  .toggle-opt.active strong{color:var(--green);}
+  .toggle-opt.disabled{opacity:.4;cursor:not-allowed;pointer-events:none;background:var(--paper);}
+  .focus-lock-note{
+    display:none;margin-top:10px;font-size:13px;color:var(--ink-soft);
+    background:#FBE4E0;border:1px solid #F0BFB6;border-radius:8px;padding:10px 12px;
+  }
+
+  .note{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    position:relative;align-self:start;
+  }
+  .note .tag{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-soft);display:block;margin-bottom:6px;
+  }
+  .note p{margin:0;font-size:14px;color:var(--ink);}
+  .note .ex{display:flex;gap:8px;margin-top:10px;align-items:flex-start;}
+  .note .ex:first-of-type{margin-top:12px;}
+  .note .ex-icon{flex-shrink:0;font-size:13px;line-height:1.5;}
+  .note .ex p{font-size:13px;line-height:1.4;}
+  .note .ex-bad p{color:#B0453A;}
+  .note .ex-good p{color:var(--ink-soft);}
+  .note .ex-note{display:block;font-size:11px;color:var(--ink-soft);margin-top:2px;font-style:italic;}
+
+  .optional-block{grid-template-columns:1fr;padding-top:24px;padding-bottom:24px;}
+  .optional-block .num{color:var(--ink-soft);}
+  .optional-block textarea{max-width:420px;min-height:44px;}
+
+  .preview-section{margin-top:52px;}
+  .preview-label{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:16px;
+  }
+  .card{
+    background:var(--card);border-radius:var(--radius);padding:36px;position:relative;
+    transform:rotate(-0.6deg);
+    box-shadow:0 18px 40px -22px rgba(18,20,15,.35), 0 2px 0 var(--line);
+    border:1px solid var(--line);
+  }
+  .card::before{
+    content:"";position:absolute;top:-10px;left:36px;width:64px;height:20px;
+    background:var(--highlight);opacity:.85;transform:rotate(-3deg);border-radius:2px;
+  }
+  .card .pretitle{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:14px;
+  }
+  .card .msg{font-size:clamp(20px,3vw,26px);font-weight:700;line-height:1.35;min-height:70px;}
+  .card .msg .placeholder{color:#C7C9BE;font-weight:600;}
+  .card .meta{
+    margin-top:22px;padding-top:18px;border-top:1px dashed var(--line);
+    display:flex;gap:18px;flex-wrap:wrap;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);
+  }
+  .card .meta b{color:var(--ink);}
+
+  .capture{
+    margin-top:40px;background:var(--ink);color:#fff;border-radius:var(--radius);padding:32px;
+    display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:space-between;
+  }
+  .capture h3{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:20px;margin:0 0 6px;}
+  .capture p{margin:0;font-size:14px;color:#C9CBC0;max-width:360px;}
+  .capture .wa-btn{
+    display:inline-flex;align-items:center;gap:10px;padding:14px 24px;border-radius:8px;border:none;
+    background:var(--accent);color:#fff;font-weight:700;font-size:15px;cursor:pointer;
+    font-family:'Inter',sans-serif;text-decoration:none;white-space:nowrap;transition:.15s ease;
+  }
+  .capture .wa-btn:hover{filter:brightness(1.08);}
+  .capture .wa-btn.disabled{opacity:.5;cursor:not-allowed;pointer-events:none;}
+  .capture .wa-hint{display:block;margin-top:8px;font-size:12px;color:#9CA08F;}
+  .footnote{margin-top:14px;font-size:12px;color:var(--ink-soft);max-width:640px;}
+
+  /* Variant picker */
+  .variant-grid{display:grid;gap:16px;margin-top:4px;}
+  .variant-card{
+    background:var(--card);border:1.5px solid var(--line);border-radius:12px;
+    padding:22px 24px;cursor:pointer;transition:.15s ease;position:relative;
+  }
+  .variant-card:hover{border-color:var(--ink-soft);}
+  .variant-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,75,51,.15);}
+  .variant-card .v-tag{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:8px;display:flex;align-items:center;gap:8px;
+  }
+  .variant-card.selected .v-tag{color:var(--accent);}
+  .variant-card .v-check{
+    width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);display:inline-block;flex-shrink:0;
+  }
+  .variant-card.selected .v-check{background:var(--accent);border-color:var(--accent);}
+  .variant-card .v-msg{font-size:17px;font-weight:700;line-height:1.4;}
+  .variant-tip{font-size:13px;color:var(--ink-soft);margin-top:14px;font-style:italic;}
+  .angle-score-note{
+    font-size:13px;color:var(--ink-soft);margin-top:8px;padding:8px 12px;
+    background:var(--paper);border-radius:8px;display:inline-block;
+  }
+
+  /* ID banner */
+  .id-banner{
+    display:none;margin-top:18px;padding:16px 18px;background:#EAF4F0;border:1px solid var(--green);
+    border-radius:10px;font-size:14px;color:var(--ink);
+  }
+  .id-banner b{font-family:'IBM Plex Mono',monospace;color:var(--green);font-size:15px;}
+  .id-banner.show{display:block;}
+
+  /* Popup modal */
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(18,20,15,.55);z-index:100;
+    align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal-box{
+    background:var(--card);border-radius:var(--radius);padding:32px;max-width:420px;width:100%;
+    box-shadow:0 30px 60px -20px rgba(18,20,15,.5);
+  }
+  .modal-box h3{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:22px;margin:0 0 8px;}
+  .modal-box p{font-size:14px;color:var(--ink-soft);margin:0 0 20px;}
+  .modal-box label{display:block;font-size:13.5px;font-weight:700;margin-bottom:6px;margin-top:14px;}
+  .modal-box input{
+    width:100%;font-family:'Inter',sans-serif;font-size:15px;padding:12px 14px;
+    border:1.5px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);
+  }
+  .modal-box input:focus{outline:none;border-color:var(--accent);}
+  .modal-field-error{display:none;color:#B0453A;font-size:12.5px;margin-top:5px;}
+  .modal-field-error.show{display:block;}
+  .modal-actions{display:flex;gap:10px;margin-top:22px;}
+  .modal-actions button{
+    font-family:'Inter',sans-serif;font-weight:700;font-size:14.5px;
+    padding:12px 18px;border-radius:8px;cursor:pointer;border:none;flex:1;
+  }
+  .modal-submit{background:var(--accent);color:#fff;}
+  .modal-cancel{background:var(--paper);color:var(--ink-soft);border:1.5px solid var(--line) !important;}
+
+  .save-id-btn{
+    font-family:'Inter',sans-serif;font-weight:700;font-size:15px;
+    padding:14px 22px;border-radius:8px;border:none;background:var(--accent);color:#fff;
+    cursor:pointer;margin-top:18px;
+  }
+  .save-id-btn:hover{filter:brightness(1.08);}
+  .save-id-btn:disabled{opacity:.4;cursor:not-allowed;}
+</style>
+</head>
+<body>
+
+<div class="meta-progress" id="metaProgress" style="display:none;">
+  <div class="meta-progress-inner">
+    <span class="meta-progress-text" id="metaProgressText">LANGKAH 1 DARI 2 — ANGLE FINDER</span>
+    <button class="back-btn" id="backBtn" type="button">← Kembali</button>
+  </div>
+</div>
+
+<!-- ===================== SCREEN 0: INTRO / GATE ===================== -->
+<div class="wrap screen" id="screenIntro">
+
+  <div class="eyebrow">Mulai</div>
+  <h1>Siap Bikin <span class="mark">Marketing Message</span><br>untuk Campaign Kamu Sendiri?</h1>
+  <p class="sub">Sebelum mulai, jawab satu pertanyaan ini dulu: udah punya marketing angle untuk campaign promosi kamu?</p>
+
+  <div class="toggle-row" style="margin-top:28px;">
+    <div class="toggle-opt" id="introYes">
+      <strong>Sudah</strong>
+      <span>Langsung ke Core Campaign Message Builder</span>
+    </div>
+    <div class="toggle-opt" id="introNo">
+      <strong>Belum</strong>
+      <span>Cari angle yang tepat dulu lewat Angle Finder</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===================== SCREEN 1: ANGLE FINDER ===================== -->
+<div class="wrap screen hidden" id="screenAngle">
+
+  <div class="eyebrow">Worksheet · 3 menit</div>
+  <h1>Angle mana yang <span class="mark">valid</span><br>buat produkmu?</h1>
+  <p class="sub">Jawab 7 pertanyaan ini jujur sesuai kondisi produkmu. Hasilnya bukan tebakan — tiap angle dicek satu-satu, persis sesuai kriteria di framework.</p>
+
+  <div class="progress-row" id="progressRow"></div>
+
+  <div id="questions"></div>
+
+  <div class="result-section">
+    <div class="result-label">Hasil — Angle yang valid untuk produkmu</div>
+    <div class="result-card" id="resultCard">
+      <div class="result-empty" id="resultEmpty">Jawab ketujuh pertanyaan di atas untuk melihat rekomendasi angle.</div>
+      <div id="resultBody" style="display:none;"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===================== SCREEN 2: CORE MESSAGE BUILDER ===================== -->
+<div class="wrap screen hidden" id="screenMessage">
+
+  <div class="eyebrow">Worksheet · 10 menit</div>
+  <h1>Susun <span class="mark">satu pesan campaign</span><br>yang tajam, dari nol.</h1>
+  <p class="sub">Isi 5 kolom di bawah ini pakai bahasa produk &amp; customer kamu sendiri. Ada contoh di tiap kolom biar <b>gak nebak-nebak</b> harus isi apa. Hasilnya langsung muncul di kartu preview.</p>
+
+  <div class="progress-row" id="progressRowCMB"></div>
+
+  <!-- Field 1 -->
+  <div class="field-block">
+    <div class="field-main">
+      <span class="num">01 / SITUASI SEKARANG</span>
+      <label for="f1">Customer kamu lagi ada di kondisi apa sekarang?</label>
+      <div class="hint">Ceritakan apa yang lagi dijalani customer kamu sekarang — bukan masalah atau keinginan, tapi kondisi/kebiasaan yang lagi mereka alami saat ini.</div>
+      <textarea id="f1" maxlength="100" placeholder="Contoh: sedang mencatat keuangan bisnis secara manual pakai Excel"></textarea>
+      <div class="charcount" id="cc1">0/100</div>
+    </div>
+    <div class="note">
+      <span class="tag">Contoh</span>
+      <div class="ex ex-bad"><span class="ex-icon">❌</span><p>"Ingin bisnisnya berkembang" <span class="ex-note">(ini keinginan, bukan kondisi sekarang)</span></p></div>
+      <div class="ex ex-good"><span class="ex-icon">✅</span><p>"Sedang mencatat keuangan bisnis secara manual pakai Excel"</p></div>
+      <div class="ex ex-good"><span class="ex-icon">✅</span><p>"Sedang sering makan di luar karena gak sempat masak"</p></div>
+    </div>
+  </div>
+
+  <!-- Field 2 -->
+  <div class="field-block">
+    <div class="field-main">
+      <span class="num">02 / GOAL</span>
+      <label for="f2">Dari situasi itu, hasil akhir apa yang mereka pengen?</label>
+      <div class="hint">Hasil akhir apa yang mereka pengen capai dari situasi itu? Tulis pakai kata-kata mereka sendiri, bukan istilah teknis produkmu.</div>
+      <textarea id="f2" maxlength="100" placeholder="Contoh: ingin laporan keuangan selalu akurat tanpa ribet hitung manual"></textarea>
+      <div class="charcount" id="cc2">0/100</div>
+    </div>
+    <div class="note">
+      <span class="tag">Contoh</span>
+      <div class="ex ex-bad"><span class="ex-icon">❌</span><p>"Ingin pakai software akuntansi terbaik" <span class="ex-note">(nyebut produk, bukan tujuan customer)</span></p></div>
+      <div class="ex ex-good"><span class="ex-icon">✅</span><p>"Ingin laporan keuangan selalu akurat tanpa ribet hitung manual"</p></div>
+      <div class="ex ex-good"><span class="ex-icon">✅</span><p>"Ingin tetap makan bergizi walau gak sempat masak"</p></div>
+    </div>
+  </div>
+
+  <!-- Field 3 -->
+  <div class="field-block">
+    <div class="field-main">
+      <span class="num">03 / SOLUSI</span>
+      <label for="f3">Gimana produk kamu jadi jalan keluar dari situasi itu?</label>
+      <div class="hint">Gimana produkmu bantu mereka sampai ke Goal itu? Tulis sebagai jalan keluar konkret — bukan daftar fitur, dan jangan janji lebih dari yang produkmu benar-benar bisa lakukan.</div>
+      <textarea id="f3" maxlength="100" placeholder="Contoh: otomatis mencocokkan catatan dan kas, tanpa hitung manual"></textarea>
+      <div class="charcount" id="cc3">0/100</div>
+    </div>
+    <div class="note">
+      <span class="tag">Contoh</span>
+      <div class="ex ex-bad"><span class="ex-icon">❌</span><p>"Solusi lengkap untuk semua masalah bisnismu" <span class="ex-note">(klaim terlalu luas, gak spesifik)</span></p></div>
+      <div class="ex ex-good"><span class="ex-icon">✅</span><p>"Otomatis mencocokkan catatan dan kas, tanpa hitung manual"</p></div>
+      <div class="ex ex-good"><span class="ex-icon">✅</span><p>"Ringkasan buku 15 menit, langsung dapat intinya"</p></div>
+    </div>
+  </div>
+
+  <!-- Field 4 -->
+  <div class="field-block">
+    <div class="field-main">
+      <span class="num">04 / ANGLE</span>
+      <label for="f4">Cara penyampaiannya mau lewat sudut mana?</label>
+      <div class="hint">Pilih sudut yang paling jujur mewakili produkmu — tiap pilihan punya pertanyaan validasi di bawah. Kalau kamu baru selesai isi Angle Finder, kolom ini udah otomatis terisi.</div>
+      <select id="f4">
+        <option value="">— pilih angle —</option>
+        <option value="Pain Point" data-q="Apakah produk menyelesaikan masalah utama customer?">Pain Point</option>
+        <option value="Benefit" data-q="Apakah produk memberikan hasil utama yang diinginkan customer?">Benefit</option>
+        <option value="Less or No Effort" data-q="Apakah produk membuat pekerjaan lebih mudah?">Less or No Effort</option>
+        <option value="Comfort" data-q="Apakah produk membuat customer merasa lebih nyaman?">Comfort</option>
+        <option value="Healthier" data-q="Apakah produk membuat customer lebih sehat?">Healthier</option>
+        <option value="Save Money" data-q="Apakah produk membantu menghemat biaya?">Save Money</option>
+        <option value="Guarantee" data-q="Apakah ada garansi, pendampingan, atau cara mengurangi risiko?">Guarantee</option>
+      </select>
+      <div class="angle-hint" id="angleHint">Belum pilih angle.</div>
+      <div id="angleScoreNote"></div>
+    </div>
+    <div class="note">
+      <span class="tag">Cara pilih</span>
+      <p>Kalau jawaban pertanyaan validasinya "ya, jelas" untuk produkmu — angle itu valid dipakai. Kalau ragu, coba angle lain.</p>
+    </div>
+  </div>
+
+  <!-- Field 5 -->
+  <div class="field-block">
+    <div class="field-main">
+      <span class="num">05 / FOKUS</span>
+      <label>Pesannya mau menonjolkan masalah, atau hasil?</label>
+      <div class="hint">Pilih salah satu — ini menentukan nada pesan akhir kamu.</div>
+      <div class="toggle-row">
+        <div class="toggle-opt" data-val="Pain" id="toggle-pain">
+          <strong>Pain</strong>
+          <span>Tonjolkan masalah &amp; kegusaran yang mereka rasakan sekarang</span>
+        </div>
+        <div class="toggle-opt" data-val="Desire" id="toggle-desire">
+          <strong>Desire Outcome</strong>
+          <span>Tonjolkan hasil / kondisi baru yang mereka tuju</span>
+        </div>
+      </div>
+      <div class="focus-lock-note" id="focusLockNote"></div>
+    </div>
+    <div class="note">
+      <span class="tag">Panduan cepat</span>
+      <p>Kalau customer lagi kesel/pusing sekarang → pilih Pain. Kalau mereka lagi membayangkan hasil ke depan → pilih Desire.</p>
+    </div>
+  </div>
+
+  <div class="field-block optional-block">
+    <div class="field-main">
+      <span class="num">OPSIONAL</span>
+      <label for="fbiz">Nama usaha kamu (opsional)</label>
+      <div class="hint">Biar pas kami follow-up di WhatsApp, respon kami bisa langsung relevan ke jenis usaha kamu.</div>
+      <textarea id="fbiz" maxlength="60" rows="1" placeholder="Contoh: Warung Kopi Senja"></textarea>
+    </div>
+  </div>
+
+  <div class="preview-section">
+    <button class="save-id-btn" id="generateBtn" style="display:none;">Generate Core Campaign Message →</button>
+    <p class="variant-tip" id="generateHint">Lengkapi kelima kolom di atas dulu untuk generate draft campaign message kamu.</p>
+  </div>
+
+</div>
+
+<!-- ===================== SCREEN 3: HASIL ===================== -->
+<div class="wrap screen hidden" id="screenResult">
+
+  <div class="eyebrow">Hasil</div>
+  <h1>Draft <span class="mark">Core Campaign Message</span><br>Kamu Ready</h1>
+  <p class="sub">List opsi campaign message ini masih belum divalidasi — inputan di setiap kolom yang kamu isi mungkin masih bisa salah. Ini cuma buat kasih gambaran, kamu bisa bikin core campaign message buat promosi kamu sendiri.</p>
+
+  <div class="id-banner show" id="idBanner"></div>
+  <div class="variant-grid" id="variantGrid"></div>
+  <p class="variant-tip">Tips: kalau ketiga opsi ini masih kedengeran kaku di telinga kamu, gak masalah — ambil intinya aja, lalu tulis ulang pakai gaya bahasa kamu sendiri. Ini draft cepat buat titik awal, bukan naskah final. Kamu juga bisa klik "← Kembali", ganti angle atau isian kolom, terus generate lagi — gak perlu isi data kamu ulang.</p>
+
+  <div class="capture" id="captureBox">
+    <div>
+      <h3>Mau Diskusi Hasil Ini Lebih Lanjut?</h3>
+      <p>Validasi langsung dengan Saya untuk Draft Core Campaign Message yang sudah kamu buat di atas. Klik tombol di bawah, pastikan udah pilih core campaign message yang kamu setujui.</p>
+      <span class="wa-hint" id="waHint">Pilih salah satu draft di atas dulu.</span>
+    </div>
+    <a href="#" class="wa-btn disabled" id="waBtn" target="_blank" rel="noopener">
+      Chat WA untuk Diskusi →
+    </a>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" style="position:relative;">
+    <button type="button" id="modalCloseBtn" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--ink-soft);">✕</button>
+    <h3>Generate Draft Core Campaign Message Kamu</h3>
+    <p>Isi nama dan nomor WhatsApp kamu. Data ini cuma dipakai buat generate & nyimpen draft Core Campaign Message kamu — aman, gak dipakai buat hal lain.</p>
+    <label for="modalName">Nama sapaan</label>
+    <input type="text" id="modalName" placeholder="Nama kamu">
+    <div class="modal-field-error" id="modalNameError">Isi nama kamu dulu</div>
+    <label for="modalWa">Nomor WhatsApp</label>
+    <input type="text" id="modalWa" placeholder="628xxxxxxxxxx">
+    <div class="modal-field-error" id="modalWaError">Masukin nomor WhatsApp yang valid</div>
+    <div class="modal-actions">
+      <button class="modal-submit" id="modalSubmitBtn" type="button" style="flex:1;">Generate Sekarang</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =============== SCREEN 1 LOGIC: Angle Finder =============== */
+(function(){
+  const ANGLES = [
+    { key: "Pain Point", q: "Apakah produk menyelesaikan masalah utama customer?",
+      example: "Contoh: masalah yang sebelumnya sering dialami customer jadi bisa diselesaikan dengan produk ini." },
+    { key: "Benefit", q: "Apakah produk memberikan hasil utama yang diinginkan customer?",
+      example: "Contoh: customer mendapatkan hasil yang memang mereka cari setelah menggunakan produk." },
+    { key: "Less or No Effort", q: "Apakah produk membuat pekerjaan lebih mudah?",
+      example: "Contoh: proses yang tadinya butuh banyak langkah, jadi bisa lebih singkat atau otomatis." },
+    { key: "Comfort", q: "Apakah produk membuat customer merasa lebih nyaman?",
+      example: "Contoh: customer merasa lebih praktis, nyaman, atau tidak terlalu repot saat menggunakannya." },
+    { key: "Healthier", q: "Apakah produk membuat customer lebih sehat?",
+      example: "Contoh: produk membantu menjaga atau meningkatkan kondisi kesehatan customer." },
+    { key: "Save Money", q: "Apakah produk membantu menghemat biaya?",
+      example: "Contoh: customer bisa mendapatkan hasil yang sama atau lebih baik dengan biaya yang lebih efisien." },
+    { key: "Guarantee", q: "Apakah ada garansi, pendampingan, atau cara mengurangi risiko?",
+      example: "Contoh: customer mendapat jaminan, bantuan setelah pembelian, atau mekanisme yang membuat keputusan terasa lebih aman." },
+  ];
+
+  const answers = {}; // key -> '5'..'1'
+  window.__angleFinderScores = answers; // referensi live, biar Screen 2 bisa baca skor angle manapun
+  window.__scoreLabels = {
+    '5': '5 — Sangat Yakin',
+    '4': '4 — Yakin',
+    '3': '3 — Bisa Dicoba',
+    '2': '2 — Ragu-Ragu',
+    '1': '1 — Tidak Sesuai'
+  };
+  const questionsEl = document.getElementById('questions');
+  const progressRow = document.getElementById('progressRow');
+
+  ANGLES.forEach((a, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'progress-seg';
+    seg.id = 'seg' + i;
+    progressRow.appendChild(seg);
+
+    const block = document.createElement('div');
+    block.className = 'q-block';
+
+    const num = document.createElement('span');
+    num.className = 'q-num';
+    num.textContent = String(i + 1).padStart(2, '0') + ' / 07';
+    block.appendChild(num);
+
+    const qText = document.createElement('div');
+    qText.className = 'q-text';
+    qText.textContent = a.q;
+    block.appendChild(qText);
+
+    const qExample = document.createElement('div');
+    qExample.className = 'q-example';
+    qExample.textContent = a.example;
+    block.appendChild(qExample);
+
+    const ansRow = document.createElement('div');
+    ansRow.className = 'ans-row';
+    [['5', '5 — Sangat Yakin'], ['4', '4 — Yakin'], ['3', '3 — Bisa Dicoba'], ['2', '2 — Ragu-Ragu'], ['1', '1 — Tidak Sesuai']].forEach(([val, label]) => {
+      const opt = document.createElement('div');
+      opt.className = 'ans-opt';
+      opt.dataset.angle = a.key;
+      opt.dataset.val = val;
+      const strong = document.createElement('strong');
+      strong.textContent = label;
+      opt.appendChild(strong);
+      ansRow.appendChild(opt);
+    });
+    block.appendChild(ansRow);
+
+    questionsEl.appendChild(block);
+  });
+
+  questionsEl.addEventListener('click', (e) => {
+    const opt = e.target.closest('.ans-opt');
+    if (!opt) return;
+    const angle = opt.dataset.angle;
+    const val = opt.dataset.val;
+    answers[angle] = val;
+
+    const row = opt.parentElement;
+    [...row.children].forEach(c => {
+      c.classList.remove('active-5', 'active-4', 'active-3', 'active-2', 'active-1');
+    });
+    opt.classList.add('active-' + val);
+
+    render();
+  });
+
+  function render() {
+    const answeredCount = Object.keys(answers).length;
+    for (let i = 0; i < ANGLES.length; i++) {
+      document.getElementById('seg' + i).classList.toggle('done', i < answeredCount);
+    }
+
+    const resultEmpty = document.getElementById('resultEmpty');
+    const resultBody = document.getElementById('resultBody');
+
+    if (answeredCount < ANGLES.length) {
+      resultEmpty.style.display = 'block';
+      resultEmpty.textContent = `Jawab ketujuh pertanyaan di atas untuk melihat rekomendasi angle. (${answeredCount}/7 terjawab)`;
+      resultBody.style.display = 'none';
+      return;
+    }
+
+    resultEmpty.style.display = 'none';
+    resultBody.style.display = 'block';
+    resultBody.textContent = '';
+
+    const groups = [
+      { score: '5', title: 'Sangat Direkomendasikan' },
+      { score: '4', title: 'Direkomendasikan' },
+      { score: '3', title: 'Bisa Dicoba' },
+      { score: '2', title: 'Perlu Digali Lebih Dalam' }
+    ];
+
+    let hasResult = false;
+
+    const SCORE_LABELS = {
+      '5': '5 — Sangat Yakin',
+      '4': '4 — Yakin',
+      '3': '3 — Bisa Dicoba',
+      '2': '2 — Ragu-Ragu',
+      '1': '1 — Tidak Sesuai'
+    };
+
+    groups.forEach(group => {
+      const items = ANGLES.filter(a => answers[a.key] === group.score);
+      if (!items.length) return;
+
+      hasResult = true;
+      resultBody.appendChild(groupTitle(group.title, 'score-' + group.score));
+
+      items.forEach((a, idx) => {
+        resultBody.appendChild(angleRow(a.key, 'score-' + group.score, '#' + (idx + 1), SCORE_LABELS[group.score]));
+      });
+    });
+
+    if (!hasResult) {
+      const note = document.createElement('p');
+      note.style.color = 'var(--ink-soft)';
+      note.style.fontSize = '14px';
+      note.textContent = 'Belum ada angle yang masuk hasil. Semua jawaban berada pada skor 1 (Tidak Sesuai).';
+      resultBody.appendChild(note);
+    }
+  }
+
+  function groupTitle(text, type) {
+    const el = document.createElement('div');
+    el.className = 'group-title ' + type;
+    el.textContent = text;
+    return el;
+  }
+
+  function angleRow(name, type, rankLabel, scoreLabel) {
+    const row = document.createElement('div');
+    row.className = 'angle-row ' + type;
+
+    const left = document.createElement('div');
+    const nameEl = document.createElement('div');
+    nameEl.className = 'angle-name';
+    nameEl.textContent = name;
+    const rankEl = document.createElement('div');
+    rankEl.className = 'angle-rank';
+    rankEl.textContent = rankLabel;
+    left.appendChild(nameEl);
+    left.appendChild(rankEl);
+    row.appendChild(left);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'angle-select-btn';
+    btn.textContent = 'Lanjut susun pesan →';
+    btn.addEventListener('click', () => {
+      if (window.__goToMessageBuilder) window.__goToMessageBuilder(name, scoreLabel);
+    });
+    row.appendChild(btn);
+
+    return row;
+  }
+
+  render();
+})();
+</script>
+
+<script>
+/* =============== SCREEN 2 LOGIC: Core Message Builder =============== */
+(function(){
+  const f1 = document.getElementById('f1');
+  const f2 = document.getElementById('f2');
+  const f3 = document.getElementById('f3');
+  const f4 = document.getElementById('f4');
+  const fbiz = document.getElementById('fbiz');
+  const angleHint = document.getElementById('angleHint');
+  const progressRowCMB = document.getElementById('progressRowCMB');
+  const generateBtn = document.getElementById('generateBtn');
+  const generateHint = document.getElementById('generateHint');
+  const variantGrid = document.getElementById('variantGrid');
+  const angleScoreNote = document.getElementById('angleScoreNote');
+  const idBanner = document.getElementById('idBanner');
+  const STORAGE_KEY = 'lm3_identity';
+
+  for(let i=0;i<5;i++){
+    const seg = document.createElement('div');
+    seg.className = 'progress-seg';
+    seg.id = 'segCMB'+i;
+    progressRowCMB.appendChild(seg);
+  }
+
+  let focusVal = "";
+  let lastAngleScore = null; // { angle, label } dari Angle Finder, kalau ada
+  let variants = [];
+  let selectedVariantIdx = null;
+  let savedLeadId = null;
+  let modalNameVal = '';
+
+  const togglePain = document.getElementById('toggle-pain');
+  const toggleDesire = document.getElementById('toggle-desire');
+  const focusLockNote = document.getElementById('focusLockNote');
+  togglePain.addEventListener('click', () => setFocus('Pain'));
+  toggleDesire.addEventListener('click', () => setFocus('Desire'));
+  function setFocus(val){
+    focusVal = val;
+    togglePain.classList.toggle('active', val==='Pain');
+    toggleDesire.classList.toggle('active', val==='Desire');
+    render();
+  }
+
+  function updateFocusLock(){
+    const angle = f4.value;
+    let lockTo = null;
+    if(angle === 'Pain Point') lockTo = 'Pain';
+    else if(angle === 'Benefit') lockTo = 'Desire';
+
+    togglePain.classList.remove('disabled');
+    toggleDesire.classList.remove('disabled');
+
+    if(lockTo === 'Pain'){
+      toggleDesire.classList.add('disabled');
+      if(focusVal !== 'Pain') setFocus('Pain');
+      focusLockNote.textContent = 'Angle "Pain Point" selalu berorientasi ke masalah (Pain) — sesuai definisi framework, gak bisa dipakai untuk fokus Desire.';
+      focusLockNote.style.display = 'block';
+    } else if(lockTo === 'Desire'){
+      togglePain.classList.add('disabled');
+      if(focusVal !== 'Desire') setFocus('Desire');
+      focusLockNote.textContent = 'Angle "Benefit" selalu berorientasi ke hasil (Desire) — sesuai definisi framework, gak bisa dipakai untuk fokus Pain.';
+      focusLockNote.style.display = 'block';
+    } else {
+      focusLockNote.style.display = 'none';
+    }
+  }
+
+  fbiz.addEventListener('input', render);
+
+  f4.addEventListener('change', () => {
+    const opt = f4.options[f4.selectedIndex];
+    angleHint.textContent = opt.value ? ('Pertanyaan validasi: ' + opt.dataset.q) : 'Belum pilih angle.';
+    lastAngleScore = getScoreForAngle(opt.value);
+    updateFocusLock();
+    render();
+  });
+
+  function getScoreForAngle(angle){
+    if (!angle) return null;
+    const scores = window.__angleFinderScores || {};
+    const rawScore = scores[angle];
+    const labels = window.__scoreLabels || {};
+    return rawScore ? { angle: angle, label: labels[rawScore] || rawScore } : null;
+  }
+
+  const WA_NUMBER = "6282130956475";
+  const MAX_MSG_LENGTH = 150;
+
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyEEieMLO52mP0wkfYOam0PM6tWMqZouGu7yWZyAG_SLjOAk98uiY23LP2U4QYZH5AG/exec";
+
+  function saveDraftToSheet(payload){
+    if(!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.indexOf('PASTE_URL') !== -1) {
+      console.warn('[CoreMessageBuilder] GOOGLE_SCRIPT_URL belum di-set, data tidak dikirim.');
+      return;
+    }
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch((err) => {
+      console.error('[CoreMessageBuilder] Gagal mengirim data:', err);
+    });
+  }
+
+  [f1,f2,f3].forEach((el, i) => {
+    const counter = document.getElementById('cc'+(i+1));
+    el.addEventListener('input', () => {
+      counter.textContent = el.value.length + '/100';
+      counter.classList.toggle('near-limit', el.value.length >= 90);
+      render();
+    });
+  });
+
+  // Tiap angle punya 2 bentuk kalimat: "trailing" (nempel di akhir klausa)
+  // dan "hook" (pembuka kalimat berdiri sendiri) — dipakai gantian di 3 variasi
+  // biar pas ganti angle, bukan cuma nempelin kata di belakang doang.
+  const ANGLE_PHRASES = {
+    "Pain Point":        { trailing: "biar masalah itu beres",              hook: "Ujung-ujungnya, ini soal bikin masalah itu berhenti." },
+    "Benefit":           { trailing: "biar hasil itu kamu dapatkan",        hook: "Ujung-ujungnya, ini soal bikin hasil itu kejadian." },
+    "Less or No Effort": { trailing: "tanpa ribet kayak biasanya",          hook: "Ujung-ujungnya, ini soal bikin semuanya lebih simpel." },
+    "Comfort":           { trailing: "dengan cara yang lebih nyaman",       hook: "Ujung-ujungnya, ini soal bikin harimu lebih nyaman." },
+    "Healthier":         { trailing: "demi kondisi yang lebih sehat",       hook: "Ujung-ujungnya, ini soal bikin kondisi kamu lebih sehat." },
+    "Save Money":        { trailing: "dengan biaya yang lebih hemat",       hook: "Ujung-ujungnya, ini soal bikin pengeluaran lebih hemat." },
+    "Guarantee":         { trailing: "dengan risiko yang lebih kecil buat dicoba", hook: "Ujung-ujungnya, ini soal bikin keputusan ini terasa lebih aman." }
+  };
+
+  function buildVariants(situasi, goal, solusi, angle, focus){
+    const phrase = ANGLE_PHRASES[angle] || { trailing: "buat hasil yang lebih baik", hook: "Ujung-ujungnya, ini soal bikin hasil yang lebih baik." };
+    const sit = situasi.trim();
+    const gl = goal.trim();
+    const sol = solusi.trim();
+
+    if(focus === 'Pain'){
+      return [
+        `${capitalize(sit)}? ${capitalize(sol)}, ${phrase.trailing}.`,
+        `${phrase.hook} Coba deh ${lower(sol)}.`,
+        `${capitalize(sol)} — ${phrase.trailing}. Gak perlu lagi ${lower(sit)}.`
+      ];
+    } else {
+      return [
+        `${capitalize(gl)}. ${capitalize(sol)}, ${phrase.trailing}.`,
+        `${phrase.hook} ${capitalize(sol)} bisa bawa kamu ke situ: ${lower(gl)}.`,
+        `Pengen ${lower(gl)}? ${capitalize(sol)} — ${phrase.trailing}.`
+      ];
+    }
+  }
+
+  function render(){
+    const vals = [f1.value.trim(), f2.value.trim(), f3.value.trim(), f4.value, focusVal];
+    const filled = vals.filter(v => v.length>0).length;
+
+    for(let i=0;i<5;i++){
+      document.getElementById('segCMB'+i).classList.toggle('done', i < filled);
+    }
+
+    if (f4.value && lastAngleScore && lastAngleScore.angle === f4.value) {
+      angleScoreNote.innerHTML = `<div class="angle-score-note">Kamu pilih angle ini dari Angle Finder dengan skor: <b>${lastAngleScore.label}</b>. Boleh tetap lanjut, ini cuma info.</div>`;
+    } else {
+      angleScoreNote.innerHTML = '';
+    }
+
+    // Kalau input berubah lagi, reset pilihan variasi sebelumnya
+    selectedVariantIdx = null;
+
+    if(filled < 5){
+      generateBtn.style.display = 'none';
+      generateHint.style.display = 'block';
+      generateHint.textContent = `Lengkapi kelima kolom di atas dulu untuk generate draft campaign message kamu. (${filled}/5)`;
+      return;
+    }
+
+    generateBtn.style.display = 'inline-block';
+    generateHint.style.display = 'none';
+  }
+
+  function renderVariantGrid(){
+    variantGrid.innerHTML = '';
+    variants.forEach((msg, idx) => {
+      const card = document.createElement('div');
+      card.className = 'variant-card' + (selectedVariantIdx === idx ? ' selected' : '');
+      card.innerHTML = `<div class="v-tag"><span class="v-check"></span> Opsi ${idx+1}</div><div class="v-msg">${escapeHtml(msg)}</div>`;
+      card.addEventListener('click', () => {
+        selectedVariantIdx = idx;
+        renderVariantGrid();
+        updateWaButton(variants[selectedVariantIdx]);
+      });
+      variantGrid.appendChild(card);
+    });
+  }
+
+  function escapeHtml(s){
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function capitalize(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+  function lower(s){ return s ? s.charAt(0).toLowerCase()+s.slice(1) : s; }
+  function truncate(s, max){
+    if(s.length <= max) return s;
+    return s.slice(0, max).trim() + '...';
+  }
+
+  function generateLeadId(){
+    const now = new Date();
+    const y = String(now.getFullYear()).slice(2);
+    const m = String(now.getMonth()+1).padStart(2,'0');
+    const d = String(now.getDate()).padStart(2,'0');
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let rand = '';
+    for(let i=0;i<4;i++) rand += chars[Math.floor(Math.random()*chars.length)];
+    return `${y}${m}${d}-${rand}`;
+  }
+
+  const waBtn = document.getElementById('waBtn');
+  const waHint = document.getElementById('waHint');
+
+  function updateWaButton(resultMsg){
+    if(!resultMsg){
+      waBtn.classList.add('disabled');
+      waBtn.removeAttribute('href');
+      waHint.textContent = 'Pilih salah satu draft di atas dulu.';
+      return;
+    }
+    const safeMsg = truncate(resultMsg, MAX_MSG_LENGTH);
+    const bizName = fbiz.value.trim();
+    const bizLine = bizName ? (' Usaha saya: ' + bizName + '.') : '';
+    const prefill = 'Halo, saya ' + modalNameVal + '.' + bizLine + ' Draft Core Campaign Message yang saya pilih: "' + safeMsg + '". ID: ' + savedLeadId + '. Boleh dibantu validasi/diskusi lebih lanjut soal draft ini?';
+    const url = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(prefill);
+    waBtn.href = url;
+    waBtn.classList.remove('disabled');
+    waHint.textContent = 'Chat kamu akan otomatis terisi dengan hasil pesan campaign & ID kamu.';
+  }
+
+  // ===== Popup modal: nama + WA (cuma sekali per device) =====
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalName = document.getElementById('modalName');
+  const modalWa = document.getElementById('modalWa');
+  const modalNameError = document.getElementById('modalNameError');
+  const modalWaError = document.getElementById('modalWaError');
+
+  function normalizeWhatsApp(raw){
+    let digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("0")) digits = "62" + digits.slice(1);
+    else if (!digits.startsWith("62")) digits = "62" + digits;
+    return digits;
+  }
+
+  function loadStoredIdentity(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch(e) { return null; }
+  }
+
+  function saveStoredIdentity(identity){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(identity)); } catch(e) {}
+  }
+
+  function showResultWith(identity){
+    modalNameVal = identity.name;
+    savedLeadId = identity.leadId;
+    variants = buildVariants(f1.value, f2.value, f3.value, f4.value, focusVal);
+    selectedVariantIdx = null;
+
+    renderVariantGrid();
+    updateWaButton(null);
+    idBanner.innerHTML = `✅ Draft kamu udah tersimpan. ID kamu: <b>${savedLeadId}</b> — simpan ID ini untuk konsultasi lebih lanjut.`;
+    idBanner.classList.add('show');
+    if (window.__goToResult) window.__goToResult();
+  }
+
+  generateBtn.addEventListener('click', () => {
+    const existing = loadStoredIdentity();
+    if (existing) {
+      // Device ini udah pernah isi data sebelumnya — langsung generate, gak minta isi ulang
+      showResultWith(existing);
+      return;
+    }
+    modalOverlay.classList.add('show');
+    modalName.focus();
+  });
+
+  document.getElementById('modalCloseBtn').addEventListener('click', () => {
+    modalOverlay.classList.remove('show');
+  });
+
+  document.getElementById('modalSubmitBtn').addEventListener('click', () => {
+    const name = modalName.value.trim();
+    const wa = normalizeWhatsApp(modalWa.value.trim());
+    let valid = true;
+    if (name === '') { modalNameError.classList.add('show'); valid = false; } else { modalNameError.classList.remove('show'); }
+    if (wa.length < 10) { modalWaError.classList.add('show'); valid = false; } else { modalWaError.classList.remove('show'); }
+    if (!valid) return;
+
+    const leadId = generateLeadId();
+    const identity = { name, waNumber: wa, leadId };
+
+    // Ini kiriman PERTAMA & SATU-SATUNYA ke sheet untuk device ini —
+    // generate ulang berikutnya (ganti angle/isian) gak dikirim lagi ke sheet.
+    saveDraftToSheet({
+      leadId: leadId,
+      name: name,
+      waNumber: wa,
+      waLink: 'https://wa.me/' + wa,
+      situasi: f1.value.trim(),
+      goal: f2.value.trim(),
+      solusi: f3.value.trim(),
+      angle: f4.value,
+      fokus: focusVal,
+      namaUsaha: fbiz.value.trim(),
+      draftOpsi1: buildVariants(f1.value, f2.value, f3.value, f4.value, focusVal)[0],
+      draftOpsi2: buildVariants(f1.value, f2.value, f3.value, f4.value, focusVal)[1],
+      draftOpsi3: buildVariants(f1.value, f2.value, f3.value, f4.value, focusVal)[2],
+      timestamp: new Date().toISOString()
+    });
+
+    saveStoredIdentity(identity);
+
+    modalOverlay.classList.remove('show');
+    modalName.value = '';
+    modalWa.value = '';
+
+    showResultWith(identity);
+  });
+
+  render();
+
+  // Dipanggil dari Screen 1 (Angle Finder) begitu user klik "Lanjut susun pesan"
+  window.__prefillAngleOnBuilder = function(angleName){
+    const match = [...f4.options].find(o => o.value === angleName);
+    if (match) {
+      f4.value = angleName;
+      angleHint.textContent = 'Pertanyaan validasi: ' + match.dataset.q;
+      lastAngleScore = getScoreForAngle(angleName);
+      updateFocusLock();
+      render();
+    }
+  };
+})();
+</script>
+
+<script>
+/* =============== BRIDGING: screen switch + step indicator =============== */
+(function(){
+  const screenIntro = document.getElementById('screenIntro');
+  const screenAngle = document.getElementById('screenAngle');
+  const screenMessage = document.getElementById('screenMessage');
+  const screenResult = document.getElementById('screenResult');
+  const metaProgress = document.getElementById('metaProgress');
+  const metaProgressText = document.getElementById('metaProgressText');
+  const backBtn = document.getElementById('backBtn');
+
+  let currentScreen = 'intro';
+  let flowPath = 'full'; // 'full' = lewat Angle Finder dulu, 'skip' = langsung ke Susun Pesan
+
+  const STEP_LABELS = {
+    full: {
+      angle:   'LANGKAH 1 DARI 3 — ANGLE FINDER',
+      message: 'LANGKAH 2 DARI 3 — SUSUN PESAN',
+      result:  'LANGKAH 3 DARI 3 — HASIL'
+    },
+    skip: {
+      message: 'LANGKAH 1 DARI 2 — SUSUN PESAN',
+      result:  'LANGKAH 2 DARI 2 — HASIL'
+    }
+  };
+
+  function updateMetaProgress(screenName){
+    currentScreen = screenName;
+    if (screenName === 'intro') {
+      metaProgress.style.display = 'none';
+      return;
+    }
+    metaProgress.style.display = 'block';
+    metaProgressText.textContent = STEP_LABELS[flowPath][screenName];
+    backBtn.style.display = 'inline-block';
+  }
+
+  function switchScreen(fromEl, toEl, targetScreen, onReady){
+    function onFadeOutDone(e){
+      if (e.target !== fromEl || e.propertyName !== 'opacity') return;
+      fromEl.removeEventListener('transitionend', onFadeOutDone);
+
+      fromEl.classList.add('hidden');
+      fromEl.classList.remove('fade-out');
+
+      toEl.classList.remove('hidden');
+      toEl.classList.add('fade-in-start');
+      void toEl.offsetWidth; // force reflow so the transition actually plays
+      toEl.classList.remove('fade-in-start');
+
+      if (onReady) onReady();
+      updateMetaProgress(targetScreen);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    fromEl.addEventListener('transitionend', onFadeOutDone);
+    fromEl.classList.add('fade-out');
+  }
+
+  window.__startFlow = function(path){
+    flowPath = path;
+    if (path === 'skip') {
+      switchScreen(screenIntro, screenMessage, 'message');
+    } else {
+      switchScreen(screenIntro, screenAngle, 'angle');
+    }
+  };
+
+  window.__goToMessageBuilder = function(angleName, scoreLabel){
+    switchScreen(screenAngle, screenMessage, 'message', () => {
+      if (angleName && window.__prefillAngleOnBuilder) {
+        window.__prefillAngleOnBuilder(angleName, scoreLabel);
+      }
+    });
+  };
+
+  window.__goToResult = function(){
+    switchScreen(screenMessage, screenResult, 'result');
+  };
+
+  document.getElementById('introYes').addEventListener('click', () => window.__startFlow('skip'));
+  document.getElementById('introNo').addEventListener('click', () => window.__startFlow('full'));
+
+  backBtn.addEventListener('click', () => {
+    if (currentScreen === 'result') {
+      switchScreen(screenResult, screenMessage, 'message');
+    } else if (currentScreen === 'message') {
+      if (flowPath === 'full') switchScreen(screenMessage, screenAngle, 'angle');
+      else switchScreen(screenMessage, screenIntro, 'intro');
+    } else if (currentScreen === 'angle') {
+      switchScreen(screenAngle, screenIntro, 'intro');
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
